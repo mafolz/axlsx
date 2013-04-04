@@ -80,6 +80,7 @@ module Axlsx
     #
     # @param [String] output The name of the file you want to serialize your package to
     # @param [Boolean] confirm_valid Validate the package prior to serialization.
+    # @param [Hash] options for serialization. At the moment only for setting Zip compress method
     # @return [Boolean] False if confirm_valid and validation errors exist. True if the package was serialized
     # @note A tremendous amount of effort has gone into ensuring that you cannot create invalid xlsx documents.
     #   confirm_valid should be used in the rare case that you cannot open the serialized file.
@@ -92,14 +93,16 @@ module Axlsx
     #   p = Axlsx::Package.new
     #   # ......add cool stuff to your workbook......
     #   p.serialize("example.xlsx")
+    #   # serialize without compression if excel bothers you with file format exceptions
+    #   p.serialize("example.xlsx", false, :compress_method => Zip::ZipEntry::STORED)
     #
     #   # Serialize to a stream
     #   s = p.to_stream()
     #   File.open('example_streamed.xlsx', 'w') { |f| f.write(s.read) }
-    def serialize(output, confirm_valid=false)
+    def serialize(output, confirm_valid=false, options = {})
       return false unless !confirm_valid || self.validate.empty?
       Zip::ZipOutputStream.open(output) do |zip|
-        write_parts(zip)
+        write_parts(zip, options)
       end
       true
     end
@@ -152,11 +155,15 @@ module Axlsx
     # Writes the package parts to a zip archive.
     # @param [Zip::ZipOutputStream] zip
     # @return [Zip::ZipOutputStream]
-    def write_parts(zip)
+    def write_parts(zip, options = {})
+      options = {
+        :compress_method => Zip::ZipEntry::DEFLATED
+      }.merge(options)
+
       p = parts
       p.each do |part|
         unless part[:doc].nil?
-          zip.put_next_entry(part[:entry])
+          zip.put_next_entry(part[:entry], nil, nil, options[:compress_method])
           entry = ['1.9.2', '1.9.3'].include?(RUBY_VERSION) ? part[:doc].force_encoding('BINARY') : part[:doc]
           zip.puts(entry)
         end
